@@ -9,7 +9,7 @@ import { AppCard } from '../../src/components/common/AppCard';
 import { StatusBadge } from '../../src/components/common/StatusBadge';
 import { EventService } from '../../src/services/eventService';
 import { BookingService } from '../../src/services/bookingService';
-import { ProfileService } from '../../src/services/profileService';
+import { useAuth } from '../../src/context/AuthContext';
 import { EventItem } from '../../src/types';
 import { Colors } from '../../src/constants/Colors';
 import { BorderRadius, Shadows, Spacing, Typography } from '../../src/constants/Theme';
@@ -17,6 +17,7 @@ import { BorderRadius, Shadows, Spacing, Typography } from '../../src/constants/
 export default function BookingScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { user } = useAuth();
 
   const [event, setEvent] = useState<EventItem | undefined>(undefined);
   const [loading, setLoading] = useState(true);
@@ -31,22 +32,18 @@ export default function BookingScreen() {
 
   useEffect(() => {
     async function loadData() {
-      const [userProfile, evt] = await Promise.all([
-        ProfileService.getProfile(),
-        id ? EventService.getEventById(id) : EventService.getEvents().then((evts) => evts[0]),
-      ]);
-
-      if (userProfile) {
-        setUserName(userProfile.name);
-        setUserEmail(userProfile.email);
-        setUserPhone(userProfile.phone);
+      if (user) {
+        setUserName(user.name);
+        setUserEmail(user.email);
+        setUserPhone(user.phone || '');
       }
 
+      const evt = id ? await EventService.getEventById(id) : (await EventService.getEvents())[0];
       setEvent(evt);
       setLoading(false);
     }
     loadData();
-  }, [id]);
+  }, [id, user]);
 
   const validate = (): boolean => {
     const nextErrors: typeof errors = {};

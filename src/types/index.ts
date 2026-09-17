@@ -11,16 +11,50 @@ export type EventCategory =
   | 'Business'
   | 'Entertainment';
 
+export type UserRole = 'attendee' | 'organizer';
+
+export interface UserProfile {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  role: UserRole;
+  faculty?: string;
+  avatarUrl?: string;
+  bio?: string;
+}
+
+export type User = UserProfile;
+
+export interface LoginCredentials {
+  email: string;
+  password: string;
+}
+
+export interface RegisterData {
+  name: string;
+  email: string;
+  password: string;
+  role: UserRole;
+  phone?: string;
+  faculty?: string;
+}
+
+export interface AuthResponse {
+  user: UserProfile;
+  token?: string;
+}
+
 export interface EventItem {
   id: string;
   title: string;
   description: string;
   category: EventCategory | string;
-  date: string; // e.g. "2026-10-25" or "Oct 25, 2026"
-  time: string; // e.g. "09:00 AM"
+  date: string;
+  time: string;
   location: string;
-  price: number; // 0 for Free
-  image: string; // Image URL or local asset placeholder
+  price: number;
+  image: string;
   organizerName: string;
   organizerId?: string;
   availableSeats: number;
@@ -29,8 +63,8 @@ export interface EventItem {
 }
 
 export interface BookingItem {
-  id: string; // internal id
-  bookingRef: string; // e.g. "EH-BK-7890"
+  id: string;
+  bookingRef: string;
   eventId: string;
   eventTitle: string;
   eventCategory?: string;
@@ -47,17 +81,6 @@ export interface BookingItem {
   status: 'confirmed' | 'cancelled' | 'completed' | 'pending';
   isUpcoming: boolean;
   checkedIn?: boolean;
-}
-
-export interface UserProfile {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  role: 'attendee' | 'organizer';
-  faculty?: string;
-  avatarUrl?: string;
-  bio?: string;
 }
 
 export interface OrganizerStats {

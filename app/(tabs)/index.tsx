@@ -6,7 +6,6 @@ import {
   ScrollView,
   TextInput,
   TouchableOpacity,
-  FlatList,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,6 +14,7 @@ import { EventCard } from '../../src/components/events/EventCard';
 import { FeaturedEventCard } from '../../src/components/events/FeaturedEventCard';
 import { EmptyState } from '../../src/components/common/EmptyState';
 import { EventService } from '../../src/services/eventService';
+import { useAuth } from '../../src/context/AuthContext';
 import { EventItem, EventCategory } from '../../src/types';
 import { CATEGORIES } from '../../src/data/mockData';
 import { Colors } from '../../src/constants/Colors';
@@ -22,6 +22,8 @@ import { BorderRadius, Spacing, Typography } from '../../src/constants/Theme';
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { user } = useAuth();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<EventCategory | 'All'>('All');
   const [events, setEvents] = useState<EventItem[]>([]);
@@ -43,12 +45,14 @@ export default function HomeScreen() {
     loadData();
   }, [searchQuery, selectedCategory]);
 
+  const firstName = user?.name ? user.name.split(' ')[0] : 'Explorer';
+
   return (
     <ScreenContainer scrollable contentContainerStyle={styles.container}>
       {/* Top Banner Header */}
       <View style={styles.topHeader}>
         <View>
-          <Text style={styles.greetingText}>Hello, Pavithira 👋</Text>
+          <Text style={styles.greetingText}>Hello, {firstName} 👋</Text>
           <Text style={styles.headerSubtitle}>Discover university events & activities</Text>
         </View>
         <TouchableOpacity

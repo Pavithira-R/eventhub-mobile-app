@@ -1,9 +1,12 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../../src/context/AuthContext';
 import { Colors } from '../../src/constants/Colors';
 
 export default function TabsLayout() {
+  const { isOrganizer } = useAuth();
+
   return (
     <Tabs
       screenOptions={{
@@ -55,6 +58,7 @@ export default function TabsLayout() {
             <Ionicons name="grid-outline" size={size} color={color} />
           ),
           headerTitle: 'Organizer Studio',
+          href: isOrganizer ? '/(tabs)/organizer' : null,
         }}
       />
       <Tabs.Screen

@@ -6,44 +6,67 @@ import { ScreenContainer } from '../../src/components/common/ScreenContainer';
 import { AppInput } from '../../src/components/common/AppInput';
 import { AppButton } from '../../src/components/common/AppButton';
 import { AppCard } from '../../src/components/common/AppCard';
+import { useAuth } from '../../src/context/AuthContext';
+import { Validation } from '../../src/utils/validation';
 import { Colors } from '../../src/constants/Colors';
 import { BorderRadius, Shadows, Spacing, Typography } from '../../src/constants/Theme';
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { login } = useAuth();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [errors, setErrors] = useState<{ email?: string; password?: string; general?: string }>({});
   const [isLoading, setIsLoading] = useState(false);
 
   const validate = (): boolean => {
-    const nextErrors: { email?: string; password?: string } = {};
+    const nextErrors: typeof errors = {};
 
-    if (!email.trim()) {
-      nextErrors.email = 'Email address is required.';
-    } else if (!/\S+@\S+\.\S+/.test(email.trim())) {
-      nextErrors.email = 'Please enter a valid email address.';
-    }
+    const emailErr = Validation.validateEmail(email);
+    if (emailErr) nextErrors.email = emailErr;
 
-    if (!password) {
-      nextErrors.password = 'Password is required.';
-    } else if (password.length < 6) {
-      nextErrors.password = 'Password must be at least 6 characters.';
-    }
+    const passErr = Validation.validatePassword(password, 6);
+    if (passErr) nextErrors.password = passErr;
 
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
   };
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!validate()) return;
 
     setIsLoading(true);
-    // Simulate brief network latency for realistic feel
-    setTimeout(() => {
-      setIsLoading(false);
+    setErrors((prev) => ({ ...prev, general: undefined }));
+
+    try {
+      await login({
+        email: email.trim(),
+        password: password,
+      });
+
+      // Navigate to main application area
       router.replace('/(tabs)');
-    }, 400);
+    } catch (err: any) {
+      setErrors((prev) => ({
+        ...prev,
+        general: err?.message || 'Login failed. Please check your credentials and try again.',
+      }));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Quick helper for evaluation testing
+  const handleDemoFill = (type: 'student' | 'organizer') => {
+    if (type === 'student') {
+      setEmail('student@kln.ac.lk');
+      setPassword('password123');
+    } else {
+      setEmail('organizer@kln.ac.lk');
+      setPassword('organizer123');
+    }
+    setErrors({});
   };
 
   return (
@@ -58,6 +81,14 @@ export default function LoginScreen() {
         </Text>
       </View>
 
+      {/* General Error Banner */}
+      {errors.general ? (
+        <View style={styles.errorBanner}>
+          <Ionicons name="alert-circle" size={20} color={Colors.error} />
+          <Text style={styles.errorBannerText}>{errors.general}</Text>
+        </View>
+      ) : null}
+
       <AppCard style={styles.formCard}>
         <AppInput
           label="Email Address"
@@ -68,7 +99,8 @@ export default function LoginScreen() {
           value={email}
           onChangeText={(val) => {
             setEmail(val);
-            if (errors.email) setErrors((e) => ({ ...e, email: undefined }));
+            if (errors.email || errors.general)
+              setErrors((e) => ({ ...e, email: undefined, general: undefined }));
           }}
           error={errors.email}
         />
@@ -81,7 +113,8 @@ export default function LoginScreen() {
           value={password}
           onChangeText={(val) => {
             setPassword(val);
-            if (errors.password) setErrors((e) => ({ ...e, password: undefined }));
+            if (errors.password || errors.general)
+              setErrors((e) => ({ ...e, password: undefined, general: undefined }));
           }}
           error={errors.password}
         />
@@ -105,6 +138,27 @@ export default function LoginScreen() {
           style={styles.submitBtn}
         />
       </AppCard>
+
+      {/* Demo Credentials Helper for Evaluators */}
+      <View style={styles.demoSection}>
+        <Text style={styles.demoLabel}>Demo Quick Logins:</Text>
+        <View style={styles.demoBtnRow}>
+          <TouchableOpacity
+            style={styles.demoChip}
+            onPress={() => handleDemoFill('student')}
+          >
+            <Ionicons name="school-outline" size={14} color={Colors.primary} />
+            <Text style={styles.demoChipText}>Student Demo</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.demoChip}
+            onPress={() => handleDemoFill('organizer')}
+          >
+            <Ionicons name="briefcase-outline" size={14} color={Colors.secondaryDark} />
+            <Text style={styles.demoChipText}>Organizer Demo</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
 
       <View style={styles.footer}>
         <Text style={styles.footerText}>Don't have an EventHub account? </Text>
@@ -146,6 +200,23 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xs,
     paddingHorizontal: Spacing.sm,
   },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    backgroundColor: Colors.errorLight,
+    borderColor: Colors.error,
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  errorBannerText: {
+    ...Typography.bodySmall,
+    color: Colors.error,
+    flex: 1,
+    fontWeight: '500',
+  },
   formCard: {
     padding: Spacing.lg,
     ...Shadows.md,
@@ -162,11 +233,40 @@ const styles = StyleSheet.create({
   submitBtn: {
     marginTop: Spacing.xs,
   },
+  demoSection: {
+    marginTop: Spacing.lg,
+    alignItems: 'center',
+  },
+  demoLabel: {
+    ...Typography.caption,
+    color: Colors.textMuted,
+    marginBottom: Spacing.xs,
+  },
+  demoBtnRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  demoChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.full,
+  },
+  demoChipText: {
+    ...Typography.caption,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: Spacing.xl,
+    marginTop: Spacing.lg,
   },
   footerText: {
     ...Typography.body,

@@ -6,65 +6,90 @@ import { ScreenContainer } from '../../src/components/common/ScreenContainer';
 import { AppInput } from '../../src/components/common/AppInput';
 import { AppButton } from '../../src/components/common/AppButton';
 import { AppCard } from '../../src/components/common/AppCard';
+import { useAuth } from '../../src/context/AuthContext';
+import { Validation } from '../../src/utils/validation';
+import { UserRole } from '../../src/types';
 import { Colors } from '../../src/constants/Colors';
 import { BorderRadius, Shadows, Spacing, Typography } from '../../src/constants/Theme';
 
 export default function RegisterScreen() {
   const router = useRouter();
+  const { register } = useAuth();
+
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [role, setRole] = useState<'attendee' | 'organizer'>('attendee');
+  const [role, setRole] = useState<UserRole>('attendee');
+  const [phone, setPhone] = useState('');
+
   const [errors, setErrors] = useState<{
     fullName?: string;
     email?: string;
     password?: string;
     confirmPassword?: string;
+    phone?: string;
+    general?: string;
   }>({});
   const [isLoading, setIsLoading] = useState(false);
 
   const validate = (): boolean => {
     const nextErrors: typeof errors = {};
 
-    if (!fullName.trim()) {
-      nextErrors.fullName = 'Full name is required.';
-    }
+    const nameErr = Validation.validateName(fullName);
+    if (nameErr) nextErrors.fullName = nameErr;
 
-    if (!email.trim()) {
-      nextErrors.email = 'Email address is required.';
-    } else if (!/\S+@\S+\.\S+/.test(email.trim())) {
-      nextErrors.email = 'Please enter a valid email address.';
-    }
+    const emailErr = Validation.validateEmail(email);
+    if (emailErr) nextErrors.email = emailErr;
 
-    if (!password) {
-      nextErrors.password = 'Password is required.';
-    } else if (password.length < 6) {
-      nextErrors.password = 'Password must be at least 6 characters.';
-    }
+    const passErr = Validation.validatePassword(password, 6);
+    if (passErr) nextErrors.password = passErr;
 
-    if (!confirmPassword) {
-      nextErrors.confirmPassword = 'Confirm your password.';
-    } else if (confirmPassword !== password) {
-      nextErrors.confirmPassword = 'Passwords do not match.';
-    }
+    const confirmErr = Validation.validateConfirmPassword(password, confirmPassword);
+    if (confirmErr) nextErrors.confirmPassword = confirmErr;
+
+    const phoneErr = Validation.validatePhone(phone);
+    if (phoneErr) nextErrors.phone = phoneErr;
 
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
   };
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     if (!validate()) return;
 
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
+    setErrors((prev) => ({ ...prev, general: undefined }));
+
+    try {
+      await register({
+        name: fullName,
+        email: email.trim(),
+        password: password,
+        role: role,
+        phone: phone.trim() || '+94 77 000 0000',
+      });
+
       Alert.alert(
         'Account Created! 🎉',
-        'Welcome to EventHub. Your account is ready for booking campus events.',
-        [{ text: 'Continue to App', onPress: () => router.replace('/(tabs)') }]
+        `Welcome to EventHub, ${fullName.trim()}! Your ${
+          role === 'organizer' ? 'Organizer' : 'Student'
+        } account is ready.`,
+        [
+          {
+            text: 'Continue to App',
+            onPress: () => router.replace('/(tabs)'),
+          },
+        ]
       );
-    }, 400);
+    } catch (err: any) {
+      setErrors((prev) => ({
+        ...prev,
+        general: err?.message || 'Registration failed. Please try again.',
+      }));
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -79,21 +104,30 @@ export default function RegisterScreen() {
         </Text>
       </View>
 
+      {/* General Error Banner */}
+      {errors.general ? (
+        <View style={styles.errorBanner}>
+          <Ionicons name="alert-circle" size={20} color={Colors.error} />
+          <Text style={styles.errorBannerText}>{errors.general}</Text>
+        </View>
+      ) : null}
+
       <AppCard style={styles.formCard}>
         <AppInput
-          label="Full Name"
+          label="Full Name *"
           placeholder="e.g. Pavithira Rajendran"
           icon="person-outline"
           value={fullName}
           onChangeText={(val) => {
             setFullName(val);
-            if (errors.fullName) setErrors((e) => ({ ...e, fullName: undefined }));
+            if (errors.fullName || errors.general)
+              setErrors((e) => ({ ...e, fullName: undefined, general: undefined }));
           }}
           error={errors.fullName}
         />
 
         <AppInput
-          label="Email Address"
+          label="Email Address *"
           placeholder="student@kln.ac.lk"
           icon="mail-outline"
           keyboardType="email-address"
@@ -101,41 +135,57 @@ export default function RegisterScreen() {
           value={email}
           onChangeText={(val) => {
             setEmail(val);
-            if (errors.email) setErrors((e) => ({ ...e, email: undefined }));
+            if (errors.email || errors.general)
+              setErrors((e) => ({ ...e, email: undefined, general: undefined }));
           }}
           error={errors.email}
         />
 
         <AppInput
-          label="Password"
+          label="Phone Number (Optional)"
+          placeholder="+94 77 123 4567"
+          icon="call-outline"
+          keyboardType="phone-pad"
+          value={phone}
+          onChangeText={(val) => {
+            setPhone(val);
+            if (errors.phone || errors.general)
+              setErrors((e) => ({ ...e, phone: undefined, general: undefined }));
+          }}
+          error={errors.phone}
+        />
+
+        <AppInput
+          label="Password *"
           placeholder="At least 6 characters"
           icon="lock-closed-outline"
           isPassword
           value={password}
           onChangeText={(val) => {
             setPassword(val);
-            if (errors.password) setErrors((e) => ({ ...e, password: undefined }));
+            if (errors.password || errors.general)
+              setErrors((e) => ({ ...e, password: undefined, general: undefined }));
           }}
           error={errors.password}
         />
 
         <AppInput
-          label="Confirm Password"
+          label="Confirm Password *"
           placeholder="Re-enter password"
           icon="shield-checkmark-outline"
           isPassword
           value={confirmPassword}
           onChangeText={(val) => {
             setConfirmPassword(val);
-            if (errors.confirmPassword)
-              setErrors((e) => ({ ...e, confirmPassword: undefined }));
+            if (errors.confirmPassword || errors.general)
+              setErrors((e) => ({ ...e, confirmPassword: undefined, general: undefined }));
           }}
           error={errors.confirmPassword}
         />
 
         {/* Account Role Selector */}
         <View style={styles.roleContainer}>
-          <Text style={styles.roleLabel}>Account Type</Text>
+          <Text style={styles.roleLabel}>Account Type *</Text>
           <View style={styles.roleRow}>
             <TouchableOpacity
               style={[styles.roleBtn, role === 'attendee' && styles.roleBtnActive]}
@@ -214,6 +264,23 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: Spacing.xs,
     paddingHorizontal: Spacing.sm,
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    backgroundColor: Colors.errorLight,
+    borderColor: Colors.error,
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  errorBannerText: {
+    ...Typography.bodySmall,
+    color: Colors.error,
+    flex: 1,
+    fontWeight: '500',
   },
   formCard: {
     padding: Spacing.lg,

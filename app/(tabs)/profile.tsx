@@ -1,28 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Image, Alert, TouchableOpacity } from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet, Image, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenContainer } from '../../src/components/common/ScreenContainer';
 import { AppCard } from '../../src/components/common/AppCard';
 import { AppButton } from '../../src/components/common/AppButton';
 import { StatusBadge } from '../../src/components/common/StatusBadge';
-import { ProfileService } from '../../src/services/profileService';
-import { UserProfile } from '../../src/types';
+import { useAuth } from '../../src/context/AuthContext';
 import { Colors } from '../../src/constants/Colors';
 import { BorderRadius, Shadows, Spacing, Typography } from '../../src/constants/Theme';
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-
-  const loadProfile = async () => {
-    const user = await ProfileService.getProfile();
-    setProfile(user);
-  };
-
-  useEffect(() => {
-    loadProfile();
-  }, []);
+  const { user, isOrganizer, logout } = useAuth();
 
   const handleLogout = () => {
     Alert.alert('Sign Out', 'Are you sure you want to sign out of EventHub?', [
@@ -30,33 +20,63 @@ export default function ProfileScreen() {
       {
         text: 'Sign Out',
         style: 'destructive',
-        onPress: () => router.replace('/(auth)/welcome'),
+        onPress: async () => {
+          await logout();
+          router.replace('/(auth)/welcome');
+        },
       },
     ]);
   };
 
-  if (!profile) return null;
+  if (!user) {
+    return (
+      <ScreenContainer style={styles.center}>
+        <Text style={styles.notLoggedInText}>No active user session.</Text>
+        <AppButton
+          title="Sign In"
+          onPress={() => router.replace('/(auth)/welcome')}
+          style={styles.signInBtn}
+        />
+      </ScreenContainer>
+    );
+  }
+
+  const roleLabel = isOrganizer ? 'Event Organizer' : 'University Student';
 
   return (
     <ScreenContainer scrollable contentContainerStyle={styles.content}>
       {/* Profile Header Card */}
       <AppCard style={styles.profileCard}>
         <View style={styles.avatarWrapper}>
-          <Image source={{ uri: profile.avatarUrl }} style={styles.avatar} resizeMode="cover" />
+          <Image
+            source={{
+              uri:
+                user.avatarUrl ||
+                'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
+            }}
+            style={styles.avatar}
+            resizeMode="cover"
+          />
           <View style={styles.verifiedBadge}>
             <Ionicons name="checkmark" size={14} color={Colors.textInverse} />
           </View>
         </View>
 
-        <Text style={styles.userName}>{profile.name}</Text>
-        <Text style={styles.userEmail}>{profile.email}</Text>
+        <Text style={styles.userName}>{user.name}</Text>
+        <Text style={styles.userEmail}>{user.email}</Text>
 
         <View style={styles.badgesRow}>
-          <StatusBadge label="University Student" status="primary" />
-          <StatusBadge label={profile.faculty || 'Kelaniya University'} status="info" />
+          <StatusBadge
+            label={roleLabel}
+            status={isOrganizer ? 'warning' : 'primary'}
+          />
+          <StatusBadge
+            label={user.faculty || 'University of Kelaniya'}
+            status="info"
+          />
         </View>
 
-        {profile.bio ? <Text style={styles.bioText}>{profile.bio}</Text> : null}
+        {user.bio ? <Text style={styles.bioText}>{user.bio}</Text> : null}
 
         <AppButton
           title="Edit Profile"
@@ -72,12 +92,25 @@ export default function ProfileScreen() {
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Account Details</Text>
       </View>
+
       <AppCard style={styles.infoCard}>
+        <View style={styles.infoItem}>
+          <Ionicons name="person-outline" size={18} color={Colors.textSecondary} />
+          <View style={styles.infoTextGroup}>
+            <Text style={styles.infoLabel}>Account Role</Text>
+            <Text style={styles.infoVal}>
+              {isOrganizer ? 'Organizer (Event Management Access)' : 'Student / Attendee'}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.divider} />
+
         <View style={styles.infoItem}>
           <Ionicons name="call-outline" size={18} color={Colors.textSecondary} />
           <View style={styles.infoTextGroup}>
-            <Text style={styles.infoLabel}>Phone</Text>
-            <Text style={styles.infoVal}>{profile.phone}</Text>
+            <Text style={styles.infoLabel}>Phone Number</Text>
+            <Text style={styles.infoVal}>{user.phone || 'Not provided'}</Text>
           </View>
         </View>
 
@@ -86,38 +119,30 @@ export default function ProfileScreen() {
         <View style={styles.infoItem}>
           <Ionicons name="school-outline" size={18} color={Colors.textSecondary} />
           <View style={styles.infoTextGroup}>
-            <Text style={styles.infoLabel}>Institution</Text>
-            <Text style={styles.infoVal}>University of Kelaniya, Sri Lanka</Text>
-          </View>
-        </View>
-
-        <View style={styles.divider} />
-
-        <View style={styles.infoItem}>
-          <Ionicons name="shield-checkmark-outline" size={18} color={Colors.textSecondary} />
-          <View style={styles.infoTextGroup}>
-            <Text style={styles.infoLabel}>Account Status</Text>
-            <Text style={styles.infoVal}>Active & Verified Student</Text>
+            <Text style={styles.infoLabel}>Affiliation</Text>
+            <Text style={styles.infoVal}>{user.faculty || 'University of Kelaniya, Sri Lanka'}</Text>
           </View>
         </View>
       </AppCard>
 
-      {/* Organizer Mode Switch */}
-      <AppCard
-        style={styles.organizerCard}
-        onPress={() => router.push('/organizer')}
-      >
-        <View style={styles.organizerLeft}>
-          <View style={styles.organizerIconCircle}>
-            <Ionicons name="briefcase" size={20} color={Colors.primary} />
+      {/* Organizer Mode Portal (Visible for organizers) */}
+      {isOrganizer ? (
+        <AppCard
+          style={styles.organizerCard}
+          onPress={() => router.push('/organizer')}
+        >
+          <View style={styles.organizerLeft}>
+            <View style={styles.organizerIconCircle}>
+              <Ionicons name="briefcase" size={20} color={Colors.primary} />
+            </View>
+            <View>
+              <Text style={styles.organizerTitle}>Organizer Studio</Text>
+              <Text style={styles.organizerSubtitle}>Publish and manage campus events</Text>
+            </View>
           </View>
-          <View>
-            <Text style={styles.organizerTitle}>Organizer Studio</Text>
-            <Text style={styles.organizerSubtitle}>Publish and manage campus events</Text>
-          </View>
-        </View>
-        <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
-      </AppCard>
+          <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
+        </AppCard>
+      ) : null}
 
       {/* Logout Button */}
       <AppButton
@@ -133,6 +158,18 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
+  center: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.xl,
+  },
+  notLoggedInText: {
+    ...Typography.body,
+    marginBottom: Spacing.md,
+  },
+  signInBtn: {
+    minWidth: 150,
+  },
   content: {
     padding: Spacing.md,
     paddingBottom: Spacing.xxl,
