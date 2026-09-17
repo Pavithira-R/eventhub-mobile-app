@@ -1,93 +1,143 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenContainer } from '../../src/components/common/ScreenContainer';
 import { AppCard } from '../../src/components/common/AppCard';
 import { AppButton } from '../../src/components/common/AppButton';
+import { StatusBadge } from '../../src/components/common/StatusBadge';
+import { EventService } from '../../src/services/eventService';
+import { BookingService } from '../../src/services/bookingService';
+import { EventItem, OrganizerStats } from '../../src/types';
 import { Colors } from '../../src/constants/Colors';
-import { BorderRadius, Spacing, Typography } from '../../src/constants/Theme';
+import { BorderRadius, Shadows, Spacing, Typography } from '../../src/constants/Theme';
 
 export default function OrganizerDashboardScreen() {
   const router = useRouter();
+  const [stats, setStats] = useState<OrganizerStats | null>(null);
+  const [recentEvents, setRecentEvents] = useState<EventItem[]>([]);
+
+  useEffect(() => {
+    async function loadOrganizerData() {
+      const [metrics, events] = await Promise.all([
+        BookingService.getOrganizerStats(),
+        EventService.getOrganizerEvents(),
+      ]);
+      setStats(metrics);
+      setRecentEvents(events.slice(0, 3));
+    }
+    loadOrganizerData();
+  }, []);
 
   return (
     <ScreenContainer scrollable contentContainerStyle={styles.content}>
       <View style={styles.header}>
         <Text style={styles.title}>Organizer Dashboard</Text>
-        <Text style={styles.subtitle}>Overview of your societies and event management</Text>
+        <Text style={styles.subtitle}>Manage campus society events and attendee records</Text>
       </View>
 
-      {/* Metric Cards */}
-      <View style={styles.metricsGrid}>
-        <AppCard style={styles.metricCard}>
-          <Ionicons name="calendar-outline" size={24} color={Colors.primary} />
-          <Text style={styles.metricValue}>3</Text>
-          <Text style={styles.metricLabel}>Live Events</Text>
+      {/* KPI Stats Grid */}
+      <View style={styles.statsGrid}>
+        <AppCard style={styles.statCard}>
+          <View style={[styles.statIconBox, { backgroundColor: Colors.primaryLight }]}>
+            <Ionicons name="calendar" size={22} color={Colors.primary} />
+          </View>
+          <Text style={styles.statVal}>{stats?.totalEvents ?? 6}</Text>
+          <Text style={styles.statLabel}>Total Events</Text>
         </AppCard>
 
-        <AppCard style={styles.metricCard}>
-          <Ionicons name="ticket-outline" size={24} color={Colors.secondary} />
-          <Text style={styles.metricValue}>245</Text>
-          <Text style={styles.metricLabel}>Total Tickets</Text>
+        <AppCard style={styles.statCard}>
+          <View style={[styles.statIconBox, { backgroundColor: Colors.secondaryLight }]}>
+            <Ionicons name="ticket" size={22} color={Colors.secondaryDark} />
+          </View>
+          <Text style={styles.statVal}>{stats?.totalBookings ?? 184}</Text>
+          <Text style={styles.statLabel}>Total Bookings</Text>
         </AppCard>
 
-        <AppCard style={styles.metricCard}>
-          <Ionicons name="cash-outline" size={24} color={Colors.accent} />
-          <Text style={styles.metricValue}>Rs. 12.5k</Text>
-          <Text style={styles.metricLabel}>Revenue</Text>
+        <AppCard style={styles.statCard}>
+          <View style={[styles.statIconBox, { backgroundColor: Colors.accentLight }]}>
+            <Ionicons name="cash" size={22} color={Colors.warning} />
+          </View>
+          <Text style={styles.statVal}>Rs. 24.5k</Text>
+          <Text style={styles.statLabel}>Revenue</Text>
         </AppCard>
 
-        <AppCard style={styles.metricCard}>
-          <Ionicons name="people-outline" size={24} color={Colors.success} />
-          <Text style={styles.metricValue}>94%</Text>
-          <Text style={styles.metricLabel}>Turnout Rate</Text>
+        <AppCard style={styles.statCard}>
+          <View style={[styles.statIconBox, { backgroundColor: Colors.successLight }]}>
+            <Ionicons name="people" size={22} color={Colors.success} />
+          </View>
+          <Text style={styles.statVal}>92%</Text>
+          <Text style={styles.statLabel}>Capacity Avg</Text>
         </AppCard>
       </View>
 
-      {/* Quick Action Button */}
-      <AppButton
-        title="+ Create New Event"
-        onPress={() => router.push('/organizer/add-event')}
-        style={styles.createBtn}
-      />
-
-      {/* Section Links */}
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Management Modules</Text>
+      {/* Quick Actions */}
+      <View style={styles.quickActionRow}>
+        <AppButton
+          title="+ Add Event"
+          size="md"
+          icon={<Ionicons name="add-circle-outline" size={18} color={Colors.textInverse} />}
+          onPress={() => router.push('/organizer/add-event')}
+          style={styles.actionBtn}
+        />
+        <AppButton
+          title="My Events"
+          variant="outline"
+          size="md"
+          icon={<Ionicons name="list-outline" size={18} color={Colors.primary} />}
+          onPress={() => router.push('/organizer/events')}
+          style={styles.actionBtn}
+        />
       </View>
 
-      <AppCard
-        style={styles.navCard}
-        onPress={() => router.push('/organizer/events')}
-      >
-        <View style={styles.navCardLeft}>
-          <View style={[styles.navIconBox, { backgroundColor: Colors.primaryLight }]}>
-            <Ionicons name="list-circle-outline" size={24} color={Colors.primary} />
-          </View>
-          <View>
-            <Text style={styles.navCardTitle}>My Events</Text>
-            <Text style={styles.navCardSub}>View, edit, or publish scheduled events</Text>
-          </View>
-        </View>
-        <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
-      </AppCard>
+      {/* Upcoming Hosted Events */}
+      <View style={styles.sectionHeaderRow}>
+        <Text style={styles.sectionHeading}>Upcoming Managed Events</Text>
+        <AppButton
+          title="View All"
+          variant="ghost"
+          size="sm"
+          onPress={() => router.push('/organizer/events')}
+        />
+      </View>
 
-      <AppCard
-        style={styles.navCard}
-        onPress={() => router.push('/organizer/event-bookings')}
-      >
-        <View style={styles.navCardLeft}>
-          <View style={[styles.navIconBox, { backgroundColor: Colors.secondaryLight }]}>
-            <Ionicons name="people-circle-outline" size={24} color={Colors.secondaryDark} />
+      {recentEvents.map((event) => (
+        <AppCard key={event.id} style={styles.eventItemCard}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.eventTitle} numberOfLines={1}>
+              {event.title}
+            </Text>
+            <StatusBadge label={event.category} status="primary" />
           </View>
-          <View>
-            <Text style={styles.navCardTitle}>Event Bookings</Text>
-            <Text style={styles.navCardSub}>Inspect attendee lists & check-ins</Text>
+
+          <View style={styles.metaRow}>
+            <Ionicons name="calendar-outline" size={14} color={Colors.textSecondary} />
+            <Text style={styles.metaText}>{event.date}</Text>
+            <Text style={styles.dot}>•</Text>
+            <Ionicons name="people-outline" size={14} color={Colors.textSecondary} />
+            <Text style={styles.metaText}>
+              {event.totalSeats - event.availableSeats} Bookings
+            </Text>
           </View>
-        </View>
-        <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
-      </AppCard>
+
+          <View style={styles.cardActions}>
+            <AppButton
+              title="Edit"
+              variant="outline"
+              size="sm"
+              onPress={() => router.push(`/organizer/edit-event?id=${event.id}` as any)}
+              style={styles.cardBtn}
+            />
+            <AppButton
+              title="Attendee Roster"
+              variant="secondary"
+              size="sm"
+              onPress={() => router.push(`/organizer/event-bookings?id=${event.id}` as any)}
+              style={styles.cardBtn}
+            />
+          </View>
+        </AppCard>
+      ))}
     </ScreenContainer>
   );
 }
@@ -95,6 +145,7 @@ export default function OrganizerDashboardScreen() {
 const styles = StyleSheet.create({
   content: {
     padding: Spacing.md,
+    paddingBottom: Spacing.xxl,
   },
   header: {
     marginBottom: Spacing.md,
@@ -106,61 +157,90 @@ const styles = StyleSheet.create({
     ...Typography.subtitle,
     marginTop: 2,
   },
-  metricsGrid: {
+  statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: Spacing.sm,
     marginBottom: Spacing.md,
   },
-  metricCard: {
+  statCard: {
     width: '48%',
     alignItems: 'center',
     paddingVertical: Spacing.md,
   },
-  metricValue: {
-    ...Typography.h2,
-    marginTop: Spacing.xs,
+  statIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.xs,
   },
-  metricLabel: {
+  statVal: {
+    ...Typography.h2,
+    fontSize: 22,
+    color: Colors.textPrimary,
+  },
+  statLabel: {
     ...Typography.caption,
     marginTop: 2,
   },
-  createBtn: {
+  quickActionRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
     marginBottom: Spacing.lg,
   },
-  sectionHeader: {
-    marginBottom: Spacing.sm,
-  },
-  sectionTitle: {
-    ...Typography.h3,
-  },
-  navCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: Spacing.sm,
-    padding: Spacing.md,
-  },
-  navCardLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
+  actionBtn: {
     flex: 1,
   },
-  navIconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: BorderRadius.md,
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    justifyContent: 'center',
+    marginBottom: Spacing.xs,
   },
-  navCardTitle: {
+  sectionHeading: {
     ...Typography.h3,
-    fontSize: 16,
+    fontSize: 17,
   },
-  navCardSub: {
+  eventItemCard: {
+    marginBottom: Spacing.sm,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.xs,
+  },
+  eventTitle: {
+    ...Typography.h3,
+    fontSize: 15,
+    flex: 1,
+    marginRight: Spacing.xs,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+  metaText: {
     ...Typography.bodySmall,
     color: Colors.textSecondary,
-    marginTop: 2,
+  },
+  dot: {
+    color: Colors.textMuted,
+    marginHorizontal: 2,
+  },
+  cardActions: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: Colors.surfaceBorder,
+  },
+  cardBtn: {
+    flex: 1,
   },
 });

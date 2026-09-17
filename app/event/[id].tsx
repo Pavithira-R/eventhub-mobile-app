@@ -1,108 +1,140 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, Image, ScrollView, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenContainer } from '../../src/components/common/ScreenContainer';
 import { AppCard } from '../../src/components/common/AppCard';
 import { AppButton } from '../../src/components/common/AppButton';
 import { StatusBadge } from '../../src/components/common/StatusBadge';
+import { EmptyState } from '../../src/components/common/EmptyState';
+import { EventService } from '../../src/services/eventService';
+import { EventItem } from '../../src/types';
 import { Colors } from '../../src/constants/Colors';
-import { BorderRadius, Spacing, Typography } from '../../src/constants/Theme';
+import { BorderRadius, Shadows, Spacing, Typography } from '../../src/constants/Theme';
 
 export default function EventDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const [event, setEvent] = useState<EventItem | undefined>(undefined);
+  const [loading, setLoading] = useState(true);
 
-  // Placeholder static event detail
-  const event = {
-    id: id || 'evt-101',
-    title: 'University Hackathon 2026',
-    category: 'Tech & Innovation',
-    date: 'Saturday, October 25, 2026',
-    time: '09:00 AM - 05:00 PM',
-    location: 'Main Auditorium, University of Kelaniya',
-    price: 0,
-    availableSeats: 45,
-    totalSeats: 100,
-    organizer: 'Computer Science Students Society (CSSS)',
-    description:
-      'Join us for the premier annual hackathon at University of Kelaniya! Team up with fellow developers, build cutting-edge solutions, and win exciting prizes. Mentorship, refreshments, and certificates will be provided.',
-  };
+  useEffect(() => {
+    async function loadEvent() {
+      if (id) {
+        const found = await EventService.getEventById(id);
+        setEvent(found);
+      }
+      setLoading(false);
+    }
+    loadEvent();
+  }, [id]);
+
+  if (loading) {
+    return (
+      <ScreenContainer style={styles.center}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </ScreenContainer>
+    );
+  }
+
+  if (!event) {
+    return (
+      <ScreenContainer>
+        <EmptyState
+          icon="alert-circle-outline"
+          title="Event Not Found"
+          description="The event you are trying to view does not exist or has been removed."
+          actionTitle="Back to Explore"
+          onAction={() => router.replace('/(tabs)')}
+        />
+      </ScreenContainer>
+    );
+  }
 
   return (
     <ScreenContainer scrollable contentContainerStyle={styles.content}>
-      {/* Banner Card */}
-      <View style={styles.bannerContainer}>
-        <View style={styles.bannerPlaceholder}>
-          <Ionicons name="image-outline" size={48} color={Colors.primary} />
-          <Text style={styles.bannerText}>Event Banner</Text>
+      {/* Large Hero Image */}
+      <View style={styles.imageWrapper}>
+        <Image source={{ uri: event.image }} style={styles.heroImage} resizeMode="cover" />
+        <View style={styles.categoryBadge}>
+          <StatusBadge label={event.category} status="primary" />
+        </View>
+        <View style={styles.priceTag}>
+          <Text style={styles.priceTagText}>
+            {event.price === 0 ? 'FREE ADMISSION' : `Rs. ${event.price}`}
+          </Text>
         </View>
       </View>
 
+      {/* Main Event Header */}
       <View style={styles.headerBlock}>
-        <StatusBadge label={event.category} status="primary" />
         <Text style={styles.title}>{event.title}</Text>
-        <Text style={styles.organizer}>Organized by {event.organizer}</Text>
+        <View style={styles.organizerRow}>
+          <Ionicons name="shield-checkmark" size={16} color={Colors.primary} />
+          <Text style={styles.organizerText}>Organized by {event.organizerName}</Text>
+        </View>
       </View>
 
-      {/* Quick Details Cards */}
-      <AppCard style={styles.detailsCard}>
-        <View style={styles.detailRow}>
-          <View style={styles.iconBox}>
+      {/* Event Details Key Info Cards */}
+      <AppCard style={styles.infoCard}>
+        <View style={styles.infoRow}>
+          <View style={[styles.infoIconBox, { backgroundColor: Colors.primaryLight }]}>
             <Ionicons name="calendar" size={20} color={Colors.primary} />
           </View>
-          <View style={styles.detailTextContainer}>
-            <Text style={styles.detailLabel}>Date & Time</Text>
-            <Text style={styles.detailValue}>{event.date}</Text>
-            <Text style={styles.detailSubValue}>{event.time}</Text>
+          <View style={styles.infoCol}>
+            <Text style={styles.infoLabel}>Date & Time</Text>
+            <Text style={styles.infoValue}>{event.date}</Text>
+            <Text style={styles.infoSub}>{event.time}</Text>
           </View>
         </View>
 
         <View style={styles.divider} />
 
-        <View style={styles.detailRow}>
-          <View style={styles.iconBox}>
+        <View style={styles.infoRow}>
+          <View style={[styles.infoIconBox, { backgroundColor: Colors.secondaryLight }]}>
             <Ionicons name="location" size={20} color={Colors.secondaryDark} />
           </View>
-          <View style={styles.detailTextContainer}>
-            <Text style={styles.detailLabel}>Location</Text>
-            <Text style={styles.detailValue}>{event.location}</Text>
+          <View style={styles.infoCol}>
+            <Text style={styles.infoLabel}>Location / Venue</Text>
+            <Text style={styles.infoValue}>{event.location}</Text>
           </View>
         </View>
 
         <View style={styles.divider} />
 
-        <View style={styles.detailRow}>
-          <View style={styles.iconBox}>
-            <Ionicons name="people" size={20} color={Colors.accent} />
+        <View style={styles.infoRow}>
+          <View style={[styles.infoIconBox, { backgroundColor: Colors.accentLight }]}>
+            <Ionicons name="people" size={20} color={Colors.warning} />
           </View>
-          <View style={styles.detailTextContainer}>
-            <Text style={styles.detailLabel}>Availability</Text>
-            <Text style={styles.detailValue}>
+          <View style={styles.infoCol}>
+            <Text style={styles.infoLabel}>Seat Availability</Text>
+            <Text style={styles.infoValue}>
               {event.availableSeats} of {event.totalSeats} seats remaining
             </Text>
           </View>
         </View>
       </AppCard>
 
-      {/* Description */}
+      {/* Event Description Section */}
       <AppCard style={styles.descCard}>
-        <Text style={styles.sectionTitle}>About This Event</Text>
-        <Text style={styles.descText}>{event.description}</Text>
+        <Text style={styles.descTitle}>About the Event</Text>
+        <Text style={styles.descBody}>{event.description}</Text>
       </AppCard>
 
-      {/* Bottom Booking Bar */}
-      <View style={styles.bookingBar}>
-        <View>
-          <Text style={styles.priceLabel}>Price</Text>
-          <Text style={styles.priceValue}>
+      {/* Sticky Bottom Bar */}
+      <View style={styles.bottomBar}>
+        <View style={styles.priceContainer}>
+          <Text style={styles.bottomPriceLabel}>Ticket Price</Text>
+          <Text style={styles.bottomPriceValue}>
             {event.price === 0 ? 'FREE' : `Rs. ${event.price}`}
           </Text>
         </View>
         <AppButton
           title="Book Now"
+          size="lg"
+          icon={<Ionicons name="ticket-outline" size={20} color={Colors.textInverse} />}
           onPress={() => router.push(`/event/book?id=${event.id}` as any)}
-          style={styles.bookButton}
+          style={styles.bookBtn}
         />
       </View>
     </ScreenContainer>
@@ -110,71 +142,95 @@ export default function EventDetailsScreen() {
 }
 
 const styles = StyleSheet.create({
+  center: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   content: {
     padding: Spacing.md,
-    paddingBottom: 40,
+    paddingBottom: Spacing.xxl,
   },
-  bannerContainer: {
+  imageWrapper: {
+    height: 220,
+    width: '100%',
+    borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
+    backgroundColor: Colors.surfaceSubtle,
+    position: 'relative',
     marginBottom: Spacing.md,
+    ...Shadows.md,
   },
-  bannerPlaceholder: {
-    height: 180,
-    backgroundColor: Colors.primaryLight,
-    borderRadius: BorderRadius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: Colors.border,
+  heroImage: {
+    width: '100%',
+    height: '100%',
   },
-  bannerText: {
-    ...Typography.bodySmall,
-    color: Colors.primary,
-    marginTop: Spacing.xs,
-    fontWeight: '600',
+  categoryBadge: {
+    position: 'absolute',
+    top: Spacing.md,
+    left: Spacing.md,
+  },
+  priceTag: {
+    position: 'absolute',
+    bottom: Spacing.md,
+    right: Spacing.md,
+    backgroundColor: Colors.textPrimary,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.md,
+  },
+  priceTagText: {
+    ...Typography.caption,
+    color: Colors.textInverse,
+    fontWeight: '700',
   },
   headerBlock: {
     marginBottom: Spacing.md,
-    gap: Spacing.xs,
   },
   title: {
     ...Typography.h1,
     fontSize: 24,
-    marginTop: Spacing.xs,
+    lineHeight: 30,
+    marginBottom: 6,
   },
-  organizer: {
-    ...Typography.subtitle,
+  organizerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  organizerText: {
+    ...Typography.bodySmall,
     color: Colors.textSecondary,
+    fontWeight: '500',
   },
-  detailsCard: {
+  infoCard: {
     marginBottom: Spacing.md,
     padding: Spacing.md,
   },
-  detailRow: {
+  infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  iconBox: {
-    width: 40,
-    height: 40,
+  infoIconBox: {
+    width: 44,
+    height: 44,
     borderRadius: BorderRadius.md,
-    backgroundColor: Colors.surfaceSubtle,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: Spacing.md,
   },
-  detailTextContainer: {
+  infoCol: {
     flex: 1,
   },
-  detailLabel: {
+  infoLabel: {
     ...Typography.caption,
     textTransform: 'uppercase',
   },
-  detailValue: {
+  infoValue: {
     ...Typography.body,
     fontWeight: '600',
     marginTop: 2,
   },
-  detailSubValue: {
+  infoSub: {
     ...Typography.bodySmall,
     color: Colors.textSecondary,
   },
@@ -184,36 +240,40 @@ const styles = StyleSheet.create({
     marginVertical: Spacing.sm,
   },
   descCard: {
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.lg,
+    padding: Spacing.md,
   },
-  sectionTitle: {
+  descTitle: {
     ...Typography.h3,
     marginBottom: Spacing.xs,
   },
-  descText: {
+  descBody: {
     ...Typography.body,
     lineHeight: 22,
     color: Colors.textSecondary,
   },
-  bookingBar: {
+  bottomBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: Colors.surface,
     padding: Spacing.md,
-    borderRadius: BorderRadius.lg,
+    borderRadius: BorderRadius.xl,
     borderWidth: 1,
-    borderColor: Colors.surfaceBorder,
-    marginTop: Spacing.sm,
+    borderColor: Colors.border,
+    ...Shadows.md,
   },
-  priceLabel: {
+  priceContainer: {
+    flex: 1,
+  },
+  bottomPriceLabel: {
     ...Typography.caption,
   },
-  priceValue: {
+  bottomPriceValue: {
     ...Typography.h2,
     color: Colors.primary,
   },
-  bookButton: {
-    paddingHorizontal: Spacing.xl,
+  bookBtn: {
+    minWidth: 150,
   },
 });

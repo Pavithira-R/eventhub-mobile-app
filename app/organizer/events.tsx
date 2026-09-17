@@ -1,42 +1,58 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenContainer } from '../../src/components/common/ScreenContainer';
 import { AppCard } from '../../src/components/common/AppCard';
 import { AppButton } from '../../src/components/common/AppButton';
 import { StatusBadge } from '../../src/components/common/StatusBadge';
+import { EmptyState } from '../../src/components/common/EmptyState';
+import { EventService } from '../../src/services/eventService';
+import { EventItem } from '../../src/types';
 import { Colors } from '../../src/constants/Colors';
 import { Spacing, Typography } from '../../src/constants/Theme';
 
-const ORGANIZER_EVENTS = [
-  {
-    id: 'evt-101',
-    title: 'University Hackathon 2026',
-    date: 'Oct 25, 2026',
-    status: 'Published',
-    bookings: 55,
-    capacity: 100,
-  },
-  {
-    id: 'evt-103',
-    title: 'Mobile App Development Masterclass',
-    date: 'Nov 20, 2026',
-    status: 'Draft',
-    bookings: 0,
-    capacity: 50,
-  },
-];
-
 export default function MyEventsScreen() {
   const router = useRouter();
+  const [events, setEvents] = useState<EventItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadEvents = async () => {
+    setLoading(true);
+    const data = await EventService.getOrganizerEvents();
+    setEvents(data);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadEvents();
+  }, []);
+
+  const handleDeleteEvent = (event: EventItem) => {
+    Alert.alert(
+      'Delete Event Listing?',
+      `Are you sure you want to permanently delete "${event.title}"? Any registered attendees will be notified.`,
+      [
+        { text: 'Keep Event', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            await EventService.deleteEvent(event.id);
+            Alert.alert('Event Deleted', 'The event has been removed from EventHub.');
+            loadEvents();
+          },
+        },
+      ]
+    );
+  };
 
   return (
     <ScreenContainer scrollable contentContainerStyle={styles.content}>
       <View style={styles.topRow}>
-        <View>
-          <Text style={styles.title}>My Hosted Events</Text>
-          <Text style={styles.subtitle}>Manage listings and edit event parameters</Text>
+        <View style={styles.titleCol}>
+          <Text style={styles.title}>Hosted Events</Text>
+          <Text style={styles.subtitle}>Manage your society listings and capacity</Text>
         </View>
         <AppButton
           title="+ Add"
@@ -45,46 +61,79 @@ export default function MyEventsScreen() {
         />
       </View>
 
-      {ORGANIZER_EVENTS.map((event) => (
-        <AppCard key={event.id} style={styles.eventCard}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.eventTitle}>{event.title}</Text>
-            <StatusBadge
-              label={event.status}
-              status={event.status === 'Published' ? 'success' : 'neutral'}
-            />
-          </View>
+      {loading ? (
+        <ActivityIndicator size="large" color={Colors.primary} style={styles.loader} />
+      ) : events.length === 0 ? (
+        <EmptyState
+          icon="calendar-outline"
+          title="No Events Hosted"
+          description="You haven't created any events yet. Publish your first event to start accepting bookings!"
+          actionTitle="Create First Event"
+          onAction={() => router.push('/organizer/add-event')}
+        />
+      ) : (
+        events.map((event) => {
+          const bookedCount = event.totalSeats - event.availableSeats;
 
-          <View style={styles.infoRow}>
-            <Ionicons name="calendar-outline" size={15} color={Colors.textSecondary} />
-            <Text style={styles.infoText}>{event.date}</Text>
-          </View>
+          return (
+            <AppCard key={event.id} style={styles.eventCard}>
+              <View style={styles.cardHeader}>
+                <View style={styles.titleRow}>
+                  <Text style={styles.eventTitle}>{event.title}</Text>
+                  <StatusBadge label={event.category} status="primary" />
+                </View>
+              </View>
 
-          <View style={styles.infoRow}>
-            <Ionicons name="people-outline" size={15} color={Colors.textSecondary} />
-            <Text style={styles.infoText}>
-              {event.bookings} / {event.capacity} Registered Attendees
-            </Text>
-          </View>
+              <View style={styles.metaRow}>
+                <Ionicons name="calendar-outline" size={14} color={Colors.primary} />
+                <Text style={styles.metaText}>
+                  {event.date} • {event.time}
+                </Text>
+              </View>
 
-          <View style={styles.actionRow}>
-            <AppButton
-              title="Edit Event"
-              variant="outline"
-              size="sm"
-              onPress={() => router.push(`/organizer/edit-event?id=${event.id}` as any)}
-              style={styles.actionBtn}
-            />
-            <AppButton
-              title="View Bookings"
-              variant="secondary"
-              size="sm"
-              onPress={() => router.push(`/organizer/event-bookings?id=${event.id}` as any)}
-              style={styles.actionBtn}
-            />
-          </View>
-        </AppCard>
-      ))}
+              <View style={styles.metaRow}>
+                <Ionicons name="location-outline" size={14} color={Colors.secondaryDark} />
+                <Text style={styles.metaText}>{event.location}</Text>
+              </View>
+
+              <View style={styles.metaRow}>
+                <Ionicons name="pricetag-outline" size={14} color={Colors.accent} />
+                <Text style={styles.metaText}>
+                  {event.price === 0 ? 'Free Entry' : `Rs. ${event.price}`} • {event.availableSeats} of{' '}
+                  {event.totalSeats} seats remaining ({bookedCount} booked)
+                </Text>
+              </View>
+
+              {/* Action Buttons: Edit, View Bookings, Delete */}
+              <View style={styles.actionsRow}>
+                <AppButton
+                  title="Edit"
+                  variant="outline"
+                  size="sm"
+                  icon={<Ionicons name="pencil" size={13} color={Colors.primary} />}
+                  onPress={() => router.push(`/organizer/edit-event?id=${event.id}` as any)}
+                  style={styles.actionBtn}
+                />
+                <AppButton
+                  title="Bookings"
+                  variant="secondary"
+                  size="sm"
+                  icon={<Ionicons name="people" size={13} color={Colors.primary} />}
+                  onPress={() => router.push(`/organizer/event-bookings?id=${event.id}` as any)}
+                  style={styles.actionBtn}
+                />
+                <AppButton
+                  title="Delete"
+                  variant="danger"
+                  size="sm"
+                  onPress={() => handleDeleteEvent(event)}
+                  style={styles.deleteBtn}
+                />
+              </View>
+            </AppCard>
+          );
+        })
+      )}
     </ScreenContainer>
   );
 }
@@ -92,6 +141,7 @@ export default function MyEventsScreen() {
 const styles = StyleSheet.create({
   content: {
     padding: Spacing.md,
+    paddingBottom: Spacing.xxl,
   },
   topRow: {
     flexDirection: 'row',
@@ -99,40 +149,51 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: Spacing.md,
   },
+  titleCol: {
+    flex: 1,
+    marginRight: Spacing.sm,
+  },
   title: {
     ...Typography.h2,
   },
   subtitle: {
-    ...Typography.caption,
+    ...Typography.subtitle,
     marginTop: 2,
+  },
+  loader: {
+    marginVertical: Spacing.xl,
   },
   eventCard: {
     marginBottom: Spacing.md,
   },
   cardHeader: {
+    marginBottom: Spacing.xs,
+  },
+  titleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: Spacing.xs,
+    gap: Spacing.xs,
   },
   eventTitle: {
     ...Typography.h3,
+    fontSize: 16,
     flex: 1,
-    marginRight: Spacing.sm,
   },
-  infoRow: {
+  metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     marginTop: 4,
   },
-  infoText: {
+  metaText: {
     ...Typography.bodySmall,
     color: Colors.textSecondary,
+    flex: 1,
   },
-  actionRow: {
+  actionsRow: {
     flexDirection: 'row',
-    gap: Spacing.sm,
+    gap: Spacing.xs,
     marginTop: Spacing.md,
     paddingTop: Spacing.sm,
     borderTopWidth: 1,
@@ -140,5 +201,8 @@ const styles = StyleSheet.create({
   },
   actionBtn: {
     flex: 1,
+  },
+  deleteBtn: {
+    minWidth: 70,
   },
 });

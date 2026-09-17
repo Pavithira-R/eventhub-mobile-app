@@ -1,79 +1,146 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { ScreenContainer } from '../../src/components/common/ScreenContainer';
-import { AppCard } from '../../src/components/common/AppCard';
+import { AppInput } from '../../src/components/common/AppInput';
 import { AppButton } from '../../src/components/common/AppButton';
+import { AppCard } from '../../src/components/common/AppCard';
+import { ProfileService } from '../../src/services/profileService';
 import { Colors } from '../../src/constants/Colors';
-import { BorderRadius, Spacing, Typography } from '../../src/constants/Theme';
+import { Spacing, Typography } from '../../src/constants/Theme';
 
 export default function EditProfileScreen() {
   const router = useRouter();
-  const [name, setName] = useState('Pavithira R.');
-  const [email, setEmail] = useState('student@kln.ac.lk');
-  const [phone, setPhone] = useState('+94 77 123 4567');
-  const [faculty, setFaculty] = useState('Faculty of Science');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  const handleSave = () => {
-    // Placeholder save action
-    router.back();
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [faculty, setFaculty] = useState('');
+  const [bio, setBio] = useState('');
+
+  const [errors, setErrors] = useState<{ name?: string; email?: string }>({});
+
+  useEffect(() => {
+    async function loadData() {
+      const profile = await ProfileService.getProfile();
+      setName(profile.name);
+      setEmail(profile.email);
+      setPhone(profile.phone);
+      setFaculty(profile.faculty || '');
+      setBio(profile.bio || '');
+      setLoading(false);
+    }
+    loadData();
+  }, []);
+
+  const validate = (): boolean => {
+    const nextErrors: typeof errors = {};
+
+    if (!name.trim()) {
+      nextErrors.name = 'Full name cannot be empty.';
+    }
+
+    if (!email.trim()) {
+      nextErrors.email = 'Email address cannot be empty.';
+    } else if (!/\S+@\S+\.\S+/.test(email.trim())) {
+      nextErrors.email = 'Please enter a valid email address.';
+    }
+
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
   };
+
+  const handleSave = async () => {
+    if (!validate()) return;
+
+    setSaving(true);
+    await ProfileService.updateProfile({
+      name,
+      email,
+      phone,
+      faculty,
+      bio,
+    });
+    setSaving(false);
+
+    Alert.alert('Profile Updated', 'Your profile details have been successfully saved.', [
+      { text: 'OK', onPress: () => router.back() },
+    ]);
+  };
+
+  if (loading) {
+    return (
+      <ScreenContainer style={styles.center}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </ScreenContainer>
+    );
+  }
 
   return (
     <ScreenContainer scrollable contentContainerStyle={styles.content}>
       <AppCard style={styles.formCard}>
-        <View style={styles.avatarChangeSection}>
-          <View style={styles.avatar}>
-            <Ionicons name="person" size={36} color={Colors.primary} />
-          </View>
-          <Text style={styles.changePhotoText}>Change Profile Photo</Text>
-        </View>
+        <Text style={styles.sectionHeading}>Personal Information</Text>
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Full Name</Text>
-          <TextInput
-            style={styles.input}
-            value={name}
-            onChangeText={setName}
-            placeholder="Enter your name"
-          />
-        </View>
+        <AppInput
+          label="Full Name"
+          placeholder="Your full name"
+          icon="person-outline"
+          value={name}
+          onChangeText={(val) => {
+            setName(val);
+            if (errors.name) setErrors((e) => ({ ...e, name: undefined }));
+          }}
+          error={errors.name}
+        />
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>University Email</Text>
-          <TextInput
-            style={[styles.input, styles.inputDisabled]}
-            value={email}
-            editable={false}
-          />
-          <Text style={styles.helperText}>Email address is tied to university SSO</Text>
-        </View>
+        <AppInput
+          label="Email Address"
+          placeholder="student@kln.ac.lk"
+          icon="mail-outline"
+          keyboardType="email-address"
+          autoCapitalize="none"
+          value={email}
+          onChangeText={(val) => {
+            setEmail(val);
+            if (errors.email) setErrors((e) => ({ ...e, email: undefined }));
+          }}
+          error={errors.email}
+        />
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Contact Number</Text>
-          <TextInput
-            style={styles.input}
-            value={phone}
-            onChangeText={setPhone}
-            placeholder="Phone number"
-            keyboardType="phone-pad"
-          />
-        </View>
+        <AppInput
+          label="Phone Number"
+          placeholder="+94 77 123 4567"
+          icon="call-outline"
+          keyboardType="phone-pad"
+          value={phone}
+          onChangeText={setPhone}
+        />
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Faculty / Department</Text>
-          <TextInput
-            style={styles.input}
-            value={faculty}
-            onChangeText={setFaculty}
-            placeholder="Department"
-          />
-        </View>
+        <AppInput
+          label="Faculty / Department"
+          placeholder="e.g. Faculty of Computing & Technology"
+          icon="school-outline"
+          value={faculty}
+          onChangeText={setFaculty}
+        />
+
+        <AppInput
+          label="Bio / Short Description"
+          placeholder="Tell other students about your interests..."
+          icon="document-text-outline"
+          value={bio}
+          onChangeText={setBio}
+          multiline
+          numberOfLines={3}
+          style={styles.bioInput}
+        />
 
         <AppButton
           title="Save Changes"
           onPress={handleSave}
+          loading={saving}
           style={styles.saveBtn}
         />
       </AppCard>
@@ -82,54 +149,25 @@ export default function EditProfileScreen() {
 }
 
 const styles = StyleSheet.create({
+  center: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   content: {
     padding: Spacing.md,
+    paddingBottom: Spacing.xxl,
   },
   formCard: {
     padding: Spacing.lg,
   },
-  avatarChangeSection: {
-    alignItems: 'center',
-    marginBottom: Spacing.lg,
-  },
-  avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.xs,
-  },
-  changePhotoText: {
-    ...Typography.bodySmall,
-    color: Colors.primary,
-    fontWeight: '600',
-  },
-  inputGroup: {
+  sectionHeading: {
+    ...Typography.h2,
+    fontSize: 20,
     marginBottom: Spacing.md,
   },
-  label: {
-    ...Typography.bodySmall,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-    marginBottom: Spacing.xs,
-  },
-  input: {
-    height: 48,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: BorderRadius.md,
-    backgroundColor: Colors.surfaceSubtle,
-    paddingHorizontal: Spacing.md,
-    ...Typography.body,
-  },
-  inputDisabled: {
-    opacity: 0.6,
-  },
-  helperText: {
-    ...Typography.caption,
-    marginTop: 4,
+  bioInput: {
+    height: 80,
+    textAlignVertical: 'top',
   },
   saveBtn: {
     marginTop: Spacing.md,

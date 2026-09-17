@@ -1,9 +1,13 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { ScreenContainer } from '../../src/components/common/ScreenContainer';
-import { AppCard } from '../../src/components/common/AppCard';
+import { AppInput } from '../../src/components/common/AppInput';
 import { AppButton } from '../../src/components/common/AppButton';
+import { AppCard } from '../../src/components/common/AppCard';
+import { EventService } from '../../src/services/eventService';
+import { CATEGORIES } from '../../src/data/mockData';
 import { Colors } from '../../src/constants/Colors';
 import { BorderRadius, Spacing, Typography } from '../../src/constants/Theme';
 
@@ -11,109 +15,222 @@ export default function EditEventScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
 
-  const [title, setTitle] = useState('University Hackathon 2026');
-  const [category, setCategory] = useState('Tech');
-  const [date, setDate] = useState('2026-10-25');
-  const [time, setTime] = useState('09:00 AM');
-  const [location, setLocation] = useState('Main Auditorium, UoK');
-  const [capacity, setCapacity] = useState('100');
-  const [price, setPrice] = useState('0');
-  const [description, setDescription] = useState(
-    'Premier annual hackathon at University of Kelaniya.'
-  );
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  const handleUpdate = () => {
-    // Phase 1 navigation placeholder
-    router.back();
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [category, setCategory] = useState('Technology');
+  const [date, setDate] = useState('');
+  const [time, setTime] = useState('');
+  const [location, setLocation] = useState('');
+  const [price, setPrice] = useState('0');
+  const [seats, setSeats] = useState('100');
+
+  const [errors, setErrors] = useState<{
+    title?: string;
+    description?: string;
+    date?: string;
+    time?: string;
+    location?: string;
+    seats?: string;
+  }>({});
+
+  useEffect(() => {
+    async function loadEvent() {
+      if (id) {
+        const found = await EventService.getEventById(id);
+        if (found) {
+          setTitle(found.title);
+          setDescription(found.description);
+          setCategory(found.category);
+          setDate(found.date);
+          setTime(found.time);
+          setLocation(found.location);
+          setPrice(found.price.toString());
+          setSeats(found.totalSeats.toString());
+        }
+      }
+      setLoading(false);
+    }
+    loadEvent();
+  }, [id]);
+
+  const validate = (): boolean => {
+    const nextErrors: typeof errors = {};
+
+    if (!title.trim()) nextErrors.title = 'Event title is required.';
+    if (!description.trim()) nextErrors.description = 'Description is required.';
+    if (!date.trim()) nextErrors.date = 'Event date is required.';
+    if (!time.trim()) nextErrors.time = 'Event time is required.';
+    if (!location.trim()) nextErrors.location = 'Location is required.';
+    if (!seats || parseInt(seats, 10) <= 0) nextErrors.seats = 'Valid capacity required.';
+
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
   };
+
+  const handleUpdate = async () => {
+    if (!validate() || !id) return;
+
+    setSaving(true);
+    const capacityNum = parseInt(seats, 10) || 50;
+    const priceNum = parseFloat(price) || 0;
+
+    await EventService.updateEvent(id, {
+      title,
+      description,
+      category,
+      date,
+      time,
+      location,
+      price: priceNum,
+      totalSeats: capacityNum,
+    });
+
+    setSaving(false);
+    Alert.alert('Changes Saved', 'Event details have been updated successfully.', [
+      { text: 'OK', onPress: () => router.back() },
+    ]);
+  };
+
+  if (loading) {
+    return (
+      <ScreenContainer style={styles.center}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </ScreenContainer>
+    );
+  }
 
   return (
     <ScreenContainer scrollable contentContainerStyle={styles.content}>
       <AppCard style={styles.formCard}>
-        <Text style={styles.formTitle}>Edit Event #{id || 'evt-101'}</Text>
+        <Text style={styles.formHeader}>Edit Event Details</Text>
+        <Text style={styles.formSub}>ID: {id}</Text>
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Event Title</Text>
-          <TextInput
-            style={styles.input}
-            value={title}
-            onChangeText={setTitle}
-          />
-        </View>
+        <AppInput
+          label="Event Title *"
+          placeholder="Event title"
+          icon="sparkles-outline"
+          value={title}
+          onChangeText={(val) => {
+            setTitle(val);
+            if (errors.title) setErrors((e) => ({ ...e, title: undefined }));
+          }}
+          error={errors.title}
+        />
 
+        {/* Category Picker */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Category</Text>
-          <TextInput
-            style={styles.input}
-            value={category}
-            onChangeText={setCategory}
-          />
+          <Text style={styles.label}>Category *</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.catRow}>
+            {CATEGORIES.filter((c) => c !== 'All').map((cat) => {
+              const isSelected = category === cat;
+              return (
+                <TouchableOpacity
+                  key={cat}
+                  style={[styles.catChip, isSelected && styles.catChipActive]}
+                  onPress={() => setCategory(cat)}
+                >
+                  <Text style={[styles.catChipText, isSelected && styles.catChipTextActive]}>
+                    {cat}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
         </View>
 
         <View style={styles.row}>
-          <View style={[styles.inputGroup, styles.flex1]}>
-            <Text style={styles.label}>Date</Text>
-            <TextInput
-              style={styles.input}
+          <View style={styles.col}>
+            <AppInput
+              label="Date *"
+              placeholder="e.g. Oct 25, 2026"
+              icon="calendar-outline"
               value={date}
-              onChangeText={setDate}
+              onChangeText={(val) => {
+                setDate(val);
+                if (errors.date) setErrors((e) => ({ ...e, date: undefined }));
+              }}
+              error={errors.date}
             />
           </View>
-          <View style={[styles.inputGroup, styles.flex1]}>
-            <Text style={styles.label}>Time</Text>
-            <TextInput
-              style={styles.input}
+          <View style={styles.col}>
+            <AppInput
+              label="Time *"
+              placeholder="e.g. 09:00 AM"
+              icon="time-outline"
               value={time}
-              onChangeText={setTime}
+              onChangeText={(val) => {
+                setTime(val);
+                if (errors.time) setErrors((e) => ({ ...e, time: undefined }));
+              }}
+              error={errors.time}
             />
           </View>
         </View>
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Location</Text>
-          <TextInput
-            style={styles.input}
-            value={location}
-            onChangeText={setLocation}
-          />
-        </View>
+        <AppInput
+          label="Location / Venue *"
+          placeholder="Venue"
+          icon="location-outline"
+          value={location}
+          onChangeText={(val) => {
+            setLocation(val);
+            if (errors.location) setErrors((e) => ({ ...e, location: undefined }));
+          }}
+          error={errors.location}
+        />
 
         <View style={styles.row}>
-          <View style={[styles.inputGroup, styles.flex1]}>
-            <Text style={styles.label}>Capacity</Text>
-            <TextInput
-              style={styles.input}
-              value={capacity}
-              onChangeText={setCapacity}
+          <View style={styles.col}>
+            <AppInput
+              label="Total Capacity *"
+              placeholder="100"
+              icon="people-outline"
               keyboardType="number-pad"
+              value={seats}
+              onChangeText={(val) => {
+                setSeats(val);
+                if (errors.seats) setErrors((e) => ({ ...e, seats: undefined }));
+              }}
+              error={errors.seats}
             />
           </View>
-          <View style={[styles.inputGroup, styles.flex1]}>
-            <Text style={styles.label}>Price (Rs.)</Text>
-            <TextInput
-              style={styles.input}
+          <View style={styles.col}>
+            <AppInput
+              label="Ticket Price (Rs.)"
+              placeholder="0 (Free)"
+              icon="cash-outline"
+              keyboardType="number-pad"
               value={price}
               onChangeText={setPrice}
-              keyboardType="number-pad"
             />
           </View>
         </View>
 
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Description</Text>
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            value={description}
-            onChangeText={setDescription}
-            multiline
-            numberOfLines={4}
-          />
-        </View>
+        <AppInput
+          label="Event Description *"
+          placeholder="Description"
+          icon="document-text-outline"
+          value={description}
+          onChangeText={(val) => {
+            setDescription(val);
+            if (errors.description) setErrors((e) => ({ ...e, description: undefined }));
+          }}
+          error={errors.description}
+          multiline
+          numberOfLines={4}
+          style={styles.descInput}
+        />
 
         <AppButton
           title="Save Changes"
+          size="lg"
+          icon={<Ionicons name="save-outline" size={20} color={Colors.textInverse} />}
           onPress={handleUpdate}
-          style={styles.submitBtn}
+          loading={saving}
+          style={styles.saveBtn}
         />
       </AppCard>
     </ScreenContainer>
@@ -121,25 +238,29 @@ export default function EditEventScreen() {
 }
 
 const styles = StyleSheet.create({
+  center: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   content: {
     padding: Spacing.md,
+    paddingBottom: Spacing.xxl,
   },
   formCard: {
     padding: Spacing.lg,
   },
-  formTitle: {
+  formHeader: {
     ...Typography.h2,
+    fontSize: 22,
+  },
+  formSub: {
+    ...Typography.caption,
+    color: Colors.textMuted,
     marginBottom: Spacing.md,
+    marginTop: 2,
   },
   inputGroup: {
     marginBottom: Spacing.md,
-  },
-  row: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-  },
-  flex1: {
-    flex: 1,
   },
   label: {
     ...Typography.bodySmall,
@@ -147,21 +268,42 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     marginBottom: Spacing.xs,
   },
-  input: {
-    height: 48,
+  catRow: {
+    gap: Spacing.xs,
+  },
+  catChip: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 8,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.surfaceSubtle,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: BorderRadius.md,
-    backgroundColor: Colors.surfaceSubtle,
-    paddingHorizontal: Spacing.md,
-    ...Typography.body,
+    marginRight: 6,
   },
-  textArea: {
+  catChipActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  catChipText: {
+    ...Typography.bodySmall,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
+  catChipTextActive: {
+    color: Colors.textInverse,
+  },
+  row: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  col: {
+    flex: 1,
+  },
+  descInput: {
     height: 100,
     textAlignVertical: 'top',
-    paddingTop: Spacing.sm,
   },
-  submitBtn: {
+  saveBtn: {
     marginTop: Spacing.md,
   },
 });
